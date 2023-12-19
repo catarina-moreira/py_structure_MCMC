@@ -1,2 +1,2 @@
-# py_structure_MCMC
+# Structure MCMC
 Python implementation of Structure MCMC
