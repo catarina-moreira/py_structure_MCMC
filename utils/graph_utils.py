@@ -12,8 +12,6 @@ from itertools import permutations
 
 from scores.bge import BGEscore
 from scores.marginal import MarginalLogLikelihood
-from scores.dummy import DummyScore
-from scores.NIG import DAG_NIG
 
 from collections import Counter
 
@@ -730,3 +728,71 @@ def data_generation ( G: nx.DiGraph, num_obs: int, min_value: float = 0.5,  max_
     data = multivariate_normal.rvs(cov=Sigma, size=num_obs)
 
     return pd.DataFrame(data, columns=nodes)
+
+
+def plot_true_distribution_with_non_uniform_prior(all_dags : dict, prob_threshold = 0.001, my_score_str = "score funct" ):
+
+    filtered_dags = {k: v for k, v in all_dags.items() if v['score_normalised'] >= prob_threshold}
+            
+    fig, ax = plt.subplots(figsize=(10, 5))
+    mapper_non_uniform = plot_true_posterior_distribution( filtered_dags, 
+                                            score = 'score_ordering_normalised', figsize=(15, 7), 
+                                            prob_threshold = prob_threshold, 
+                                            title = f"[{my_score_str}] Groundtruth Posterior Distribution", 
+                                            alpha=0.5, my_color = 'orange',  ax=ax, label = "Non Uniform Prior Valid Orderings(G) * P( G | D )" )
+
+    mapper_uniform = plot_true_posterior_distribution( all_dags, 
+                                            score = 'score_normalised', figsize=(15, 7), 
+                                            prob_threshold = prob_threshold, 
+                                            title = f"[{my_score_str}] Groundtruth Posterior Distribution", alpha = 0.7,  ax=ax, label = "P( G | D ) with Uniform Prior" )
+
+    ax.legend(loc='upper right', fontsize=8)
+    plt.show()
+    
+    return mapper_uniform, mapper_non_uniform
+
+def plot_non_uniform_prior_distribution(all_dags : dict, prob_threshold = 0.001, my_score_str = "score funct" ):
+    
+    filtered_dags = {k: v for k, v in all_dags.items() if v['score_normalised'] >= prob_threshold}
+            
+    fig, ax = plt.subplots(figsize=(10, 5))
+    mapper_non_uniform = plot_true_posterior_distribution( filtered_dags, 
+                                            score = 'score_ordering_normalised', figsize=(15, 7), 
+                                            prob_threshold = prob_threshold, 
+                                            title = f"[{my_score_str}] Groundtruth Posterior Distribution", 
+                                            alpha=0.5, my_color = 'orange',  ax=ax, label = "Non Uniform Prior Valid Orderings(G) * P( G | D )" )
+
+    
+    ax.legend(loc='upper right', fontsize=8)
+    plt.show()
+    
+    return mapper_non_uniform
+
+
+def plot_dag_from_true_distr( all_dags : dict, dag_indx : int, my_score_str : str = "score funct" ):
+    
+    graph_key1 = list(all_dags.keys())[dag_indx]
+    dag = all_dags[graph_key1]['DAG']
+    plot_graph( dag, figsize=(3, 3), title = f"[{my_score_str}] Groundtruth Graph" )
+    
+
+def plot_dag_from_true_distr_side_by_side( all_dags, true_posterior_distribution, dag_indx1, dag_indx2, node_labels):
+    # inspect two graphs side by side
+
+
+    graph_key1 = list(all_dags.keys())[dag_indx1]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3))
+    plot_graph( adjacency_string_to_digraph(list(all_dags.keys())[dag_indx1],
+                                            node_labels = node_labels), 
+                                            title = f"Graph ID = {dag_indx1} \nP(G | Data ) = {np.round(true_posterior_distribution[graph_key1], 4)}", ax = ax1 )
+
+    graph_key2= list(all_dags.keys())[dag_indx2]
+    plot_graph( adjacency_string_to_digraph(list(all_dags.keys())[dag_indx2],
+                                            node_labels = node_labels), 
+                                            title = f"Graph ID = {dag_indx2} \nP(G | Data ) = {np.round(true_posterior_distribution[graph_key2], 4)}", ax = ax2 )
+    plt.margins(0.2)
+    plt.tight_layout()
+    plt.show()
+    
+

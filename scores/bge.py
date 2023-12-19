@@ -12,8 +12,6 @@ import statsmodels.api as sm
 
 from scores.ScoreAbstract import Score
 
-
-
 class BGEscoreEfficient(Score):
     
     ##
