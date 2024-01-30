@@ -12,12 +12,15 @@ from itertools import permutations
 
 from scores.bge import BGEscore
 from scores.marginal import MarginalLogLikelihood
+from scores.dummy import DummyScore
 
 from collections import Counter
 
 from scipy.stats import entropy
 from scipy.stats import gamma, invgamma
 from scipy.stats import multivariate_normal
+
+
 
 import os
 from math import comb
@@ -296,8 +299,6 @@ def generate_all_dags( data : pd.DataFrame, my_score : str, with_aug_priors = Fa
                     if my_score == "Dummy Score":
                         my_score_object = DummyScore(data=data, graph=G)
 
-                    if my_score == "DAG NIG Score":
-                        my_score_object = DAG_NIG(data=data, graph=G)
                 except:
                     print("Error: Invalid score function")
                     return
@@ -559,16 +560,16 @@ def plot_approx_posterior_distribution(all_dags_dict, num_dags_threshold=50, pro
     adjmat_to_id = {idx: key for idx, key in enumerate(all_dags_dict_copy.keys())}
     
     # Filter all_dags_dict for scores greater than 0.0001
-    filtered_dags = {k: v for k, v in all_dags_dict_copy.items() if v >= prob_threshold}
+    filtered_dags = {k: v for k, v in all_dags.items() if v['score_normalised'] >= prob_threshold}
     
     # Determine which entries to plot based on the length of filtered_dags and their score_normalised value
     if len(filtered_dags) >= num_dags_threshold:
-        further_filtered_dags = {k: v for k, v in filtered_dags.items() if v >= prob_threshold}
+        further_filtered_dags = {k: v for k, v in filtered_dags.items() if v['score_normalised'] >= prob_threshold}
         x_labels = [str(id_to_adjmat[key]) for key in further_filtered_dags.keys()]
-        scores = [entry for entry in further_filtered_dags.values()]
+        scores = [entry['score_normalised'] for entry in further_filtered_dags.values()]
     else:
         x_labels = [str(id_to_adjmat[key]) for key in filtered_dags.keys()]
-        scores = [entry for entry in filtered_dags.values()]
+        scores = [entry['score_normalised'] for entry in filtered_dags.values()]
     
     # Plotting
     plt.figure(figsize=figsize)
@@ -584,7 +585,6 @@ def plot_approx_posterior_distribution(all_dags_dict, num_dags_threshold=50, pro
     plt.show()
     
     return adjmat_to_id
-
 
     
 
