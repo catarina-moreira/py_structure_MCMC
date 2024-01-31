@@ -16,28 +16,27 @@ import random
 
 class StructureMCMC(MCMC):
 
-	def __init__(self, initial_graph : nx.DiGraph, max_iter : int, 
+	def __init__(self, initial_graph : np.ndarray, max_iter : int, 
 				proposal_object : StructureLearningProposal, 
-				score_object : Score, burnIn : int = 0, sample_parameters: bool = False):
+				score_object : Score):
 		
 		self.score_object = score_object
+		self.proposal_object = proposal_object
 		self.data = score_object.get_data()
-		self.sample_parameters = sample_parameters
-		self.n = len(self.data.columns)
+		self.num_nodes = len(self.data.columns)
+		self.node_labels = list(self.data.columns)
+		self.max_iter = max_iter
 
 		# if the initial_graph is none, generate an empty graph with the same number of nodes as the data
 		if initial_graph is None:
-			self.initial_graph = nx.DiGraph()
-			self.initial_graph.add_nodes_from(self.data.columns)
+			self.initial_graph = np.zeros((self.num_nodes, self.num_nodes))
 		else:
 			self.initial_graph = initial_graph
 
-		self.max_iter = max_iter
-		self.burnIt = burnIn
-		self.proposal_object = proposal_object
+		self.indx_to_node_label = self.proposal_object.get_indx_to_node_label()
 
 	# main MCMC function that needs to be implemented
-	def log_acceptance_ratio(self, posterior_Gcurr, posterior_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr):
+	def log_acceptance_ratio(self, posterior_Gcurr : float, posterior_Gprop : float, Q_Gcurr_Gprop : float, Q_Gprop_Gcurr : float):
 
 		try:
 			numerator = posterior_Gprop + np.log(Q_Gcurr_Gprop)
@@ -57,10 +56,11 @@ class StructureMCMC(MCMC):
 			
 		return  min(0, numerator - denominator)
 
-	def acceptance_ratio(self, posterior_Gcurr, posterior_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr):
+	def acceptance_ratio(self, posterior_Gcurr : float, posterior_Gprop : float, Q_Gcurr_Gprop : float, Q_Gprop_Gcurr : float):
 		
 		numerator = posterior_Gprop * Q_Gcurr_Gprop
 		denominator = posterior_Gcurr * Q_Gprop_Gcurr
+  
 		return min(1, numerator/denominator)
 
 	def run(self):
@@ -68,7 +68,6 @@ class StructureMCMC(MCMC):
 		mcmc_res = {}
 		iter_indx = 0
 		ACCEPT = 0
-		iter_indx = 1
 
 		# start with the initial current graph:
 		# compute the score of the graph given the data
@@ -87,7 +86,6 @@ class StructureMCMC(MCMC):
 						"Q_Gprop_Gcurr" : 1,
 						"Q_Gcurr_Gprop" : 1,
 						"score_Gprop" : 1,
-						"score_Gcurr" : score_Gcurr,
 						"acceptance_prob" : 0} 
 		
 		node_score_Gcurr = collect_node_scores(score_dict)
@@ -96,26 +94,7 @@ class StructureMCMC(MCMC):
 			
 			accept_indx = 0
 			acceptance_prob = 0
-
-			# with probability 0.01, stay at the current graph
-			u = random.uniform(0,1)
-			if u < 0.01:
-				
-				mcmc_res[iter_indx] = {"graph": self.proposal_object.get_G_curr(), 
-									#"graph_id" : self.proposal_object.get_graph_id(),
-									#"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
-									"score": score_Gcurr, 
-									"operation": G_curr_operation,
-									"accepted" : accept_indx,
-									"Q_Gprop_Gcurr" : Q_Gprop_Gcurr,
-									"Q_Gcurr_Gprop" : Q_Gcurr_Gprop,
-									"score_Gprop" : score_Gprop,
-									"score_Gcurr" : score_Gcurr,
-									"acceptance_prob" : 0.01}
-					
-				iter_indx += 1
-				continue
-
+			
 			# propose a new graph and compute the proposal distribution Q
 			self.proposal_object.update_G_curr(G_curr)
 			G_prop, G_prop_operation = self.proposal_object.propose_DAG(  )
@@ -124,11 +103,27 @@ class StructureMCMC(MCMC):
 			Q_Gcurr_Gprop = self.proposal_object.get_prob_Gcurr_Gprop()
 			Q_Gprop_Gcurr = self.proposal_object.get_prob_Gprop_Gcurr()
 
+			if G_prop_operation == "stay_still":
+				
+				mcmc_res[iter_indx] = {"graph": self.proposal_object.get_G_curr(), 
+									#"graph_id" : self.proposal_object.get_graph_id(),
+									#"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
+									"score": score_Gcurr, 
+									"operation": G_prop_operation,
+									"accepted" : 0,
+									"Q_Gprop_Gcurr" : Q_Gprop_Gcurr,
+									"Q_Gcurr_Gprop" : Q_Gcurr_Gprop,
+									"score_Gprop" : 0,
+									"acceptance_prob" : 0}
+					
+				iter_indx += 1
+				continue
+
 			# we need to update the graph so we can extract the parents of the node
-			self.score_object.set_graph(G_prop)
+			self.score_object.set_incidence(G_prop)
 			node_score_Gprop = node_score_Gcurr.copy() 
 
-			rescored_nodes = compare_graphs(G_curr, G_prop, G_prop_operation)
+			rescored_nodes = compare_graphs(G_curr, G_prop, G_prop_operation, self.indx_to_node_label)
 			
 			if G_prop_operation == "add_edge" or G_prop_operation == "delete_edge":
 				node_score_Gprop[rescored_nodes] = self.score_object.compute_node( rescored_nodes )['score']
@@ -145,7 +140,6 @@ class StructureMCMC(MCMC):
 			if self.score_object.get_isLogSpace():
 				acceptance_prob = self.log_acceptance_ratio(score_Gcurr, score_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr)
 				u = np.log(np.random.uniform(0, 1))
-
 			else:
 				acceptance_prob = self.acceptance_ratio(score_Gcurr, score_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr)
 				u =  random.uniform(0,1)
@@ -179,7 +173,7 @@ class StructureMCMC(MCMC):
 
 		return mcmc_res, np.round(ACCEPT / self.max_iter,4)
 		
- 
+
 	def get_mcmc_res_graphs(self, results):
 		mcmc_graph_lst = []
 		for i in range(len(results)):
@@ -208,42 +202,58 @@ class StructureMCMC(MCMC):
 		return mcmc_accepted_graph_lst, mcmc_accepted_graph_indx
 
 
-	## GETTERTS
+	## GETTERS
 	#####################################
-	def getMax_iter(self):
+
+	def get_score_object(self):
+		return self.score_object
+
+	def get_max_iter(self):
 		return self.max_iter
 
-	def getInitial_graph(self):
+	def get_proposal_object(self):
+		return self.proposal_object
+
+	def get_data(self):
+		return self.data
+
+	def get_num_nodes(self):
+		return self.num_nodes
+
+	def get_node_labels(self):
+		return self.node_labels
+
+	def get_sample_parameters(self):
+		return self.sample_parameters
+
+	def get_initial_graph(self):
 		return self.initial_graph
 
-	def getBurnIt(self):
-		return self.burnIt
+	def get_indx_to_node_label(self):
+		return self.indx_to_node_label
 
-	def getRand_jump(self):
-		return self.rand_jump
-
-	def getRand_jump_prob(self):
-		return self.rand_jump_prob
-
-	def getProposal_function(self):
-		return self.proposal_function
-		
 	## SETTERS
-	##########################################
-	def setInitial_graph(self, initial_graph : nx.DiGraph):
-		self.initial_graph = initial_graph
+	#####################################
+	def set_score_object(self, score_object):
+		self.score_object = score_object
 
-	def setMax_iter(self, max_iter : int):
+	def set_max_iter(self, max_iter : int):
 		self.max_iter = max_iter
 
-	def setBurnIt(self, burnIt : int):
-		self.burnIt = burnIt
+	def set_proposal_object(self, proposal_object):
+		self.proposal_object = proposal_object
 
-	def setRand_jump(self, rand_jump : int):
-		self.rand_jump = rand_jump
+	def set_data(self, data):
+		self.data = data
 
-	def setRand_jump_prob(self, rand_jump_prob : float):
-		self.rand_jump_prob = rand_jump_prob
+	def set_num_nodes(self, num_nodes : int):
+		self.num_nodes = num_nodes
 
-	def setProposal_function(self, proposal_function):
-		self.proposal_function = proposal_function
+	def set_node_labels(self, node_labels):
+		self.node_labels = node_labels
+
+	def set_initial_graph(self, initial_graph):
+		self.initial_graph = initial_graph
+
+	def set_indx_to_node_label(self, indx_to_node_label):
+		self.indx_to_node_label = indx_to_node_label
