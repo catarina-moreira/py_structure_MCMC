@@ -3,10 +3,12 @@ import networkx as nx
 
 import pandas as pd
 
+import numpy as np
+
 
 class Score( ABC ):
     
-    def __init__(self, data : pd.DataFrame, graph : nx.DiGraph = None, isLogSpace = True):
+    def __init__(self, data : pd.DataFrame, incidence : np.array, isLogSpace = True):
         """
         initialises the Score abstract class. All classes that inherit from this class must implement the compute method.
 
@@ -15,7 +17,7 @@ class Score( ABC ):
             graph (nx.DiGraph, optional): graph structure. Defaults to None. The graph must be DAG.
         """
         self.data = data
-        self.graph = graph
+        self.adj_matrix = incidence
         self.isLogSpace = isLogSpace
     
     # abstract method to be implemented by subclasses 
@@ -26,17 +28,21 @@ class Score( ABC ):
         """
         pass
     
+    abstractmethod
+    def compute_node(self):
+        pass
+    
     # GETTERS AND SETTERS
     ####################################################
 
     def get_data(self):
         return self.data
     
-    def get_graph(self):
-        return self.graph
+    def get_incidence(self):
+        return self.incidence
     
-    def set_graph(self, graph):
-        self.graph = graph
+    def set_incidence(self, incidence):
+        self.incidence = incidence
         
     def set_data(self, data):
         self.data = data
