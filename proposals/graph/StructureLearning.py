@@ -14,9 +14,6 @@ from collections import Counter
 class StructureLearningProposal(ABC):
     
     def __init__(self, graph : nx.DiGraph, forbidden_arc_lst : list, mandatory_arc_lst : list):
-        self.cache = Cache()
-        
-        self.cache.cache_init()
         
         self.G_curr = graph.copy()
         self.G_prop = None
@@ -32,8 +29,6 @@ class StructureLearningProposal(ABC):
         self.forbidden_arc_lst = forbidden_arc_lst
         self.mandatory_arc_lst = mandatory_arc_lst
         
-        self.graph_hash = self.cache.compute_graph_hash( graph )
-        self.graph_id = self.cache.dict_hash_to_graph_id[ self.graph_hash ]
         
         self.possible_neighbors_addition = None
         self.possible_neighbors_deletion = None
@@ -41,8 +36,6 @@ class StructureLearningProposal(ABC):
         
         self.operation = None
         
-        self.cache.MCMC_proposed_graphs = []                      # dictionary to store all MCMC proposed graphs
-        self.cache.MCMC_proposed_operations = []
         
     @abstractmethod
     def propose_DAG(self):
@@ -64,97 +57,6 @@ class StructureLearningProposal(ABC):
                 count += 1
         return count
 
-    def compute_neighbors_by_addition(self, graph_id):
-        
-        # Check if neighbors for this graph_id are already in the cache
-        if graph_id in self.cache.dict_graph_id_to_neighbors_by_addition:
-            return self.cache.dict_graph_id_to_neighbors_by_addition[graph_id]
-    
-        G = self.cache.get_graph(graph_id)
-        neighbors = []
-        
-        # get all possible edges
-        edges_to_add = []
-        final_edges_to_add = []
-        for node1 in G.nodes():
-            for node2 in G.nodes():
-                # if node 1 is connected to node 2:
-                if G.has_edge(node1, node2) or G.has_edge(node2, node1) or node1 == node2:
-                    continue
-                
-                if not G.has_edge(node1, node2):
-                    edges_to_add.append((node1, node2))
-        
-        # try adding each edge
-        for edge in edges_to_add:
-            if edge not in G.edges():
-                new_G = G.copy()
-                new_G.add_edge(edge[0], edge[1])
-                
-                # check if the graph is a DAG
-                if nx.is_directed_acyclic_graph(new_G):
-                    final_edges_to_add.append(edge)
-                    neighbors.append(new_G)
-                    self.cache.compute_graph_hash(new_G)
-        
-        self.cache.dict_graph_id_to_neighbors_by_addition[graph_id] = neighbors
-        self.cache.dict_graph_id_to_edges_to_add[graph_id] = final_edges_to_add
-        return neighbors
-    
-    def compute_neighbors_by_deletion(self, graph_id):
-        
-        # Check if neighbors for this graph_id are already in the cache
-        if graph_id in self.cache.dict_graph_id_to_neighbors_by_deletion:
-            return self.cache.dict_graph_id_to_neighbors_by_deletion[graph_id]
-        
-        G = self.cache.get_graph(graph_id)
-        neighbors = []
-        
-        # get G's edges
-        edges_to_delete = list(G.edges())
-        
-        # generate neighbours by deleting each edge
-        for edge in edges_to_delete:
-            new_G = G.copy()
-            new_G.remove_edge(edge[0], edge[1])
-            neighbors.append(new_G)
-            self.cache.compute_graph_hash(new_G)
-        
-        self.cache.dict_graph_id_to_neighbors_by_deletion[graph_id] = neighbors
-        self.cache.dict_graph_id_to_edges_to_delete[graph_id] = edges_to_delete
-        return neighbors
-    
-    
-    def compute_neighbors_by_reversal(self, graph_id):
-        
-        # Check if neighbors for this graph_id are already in the cache
-        if graph_id in self.cache.dict_graph_id_to_neighbors_by_reversal:
-            return self.cache.dict_graph_id_to_neighbors_by_reversal[graph_id]
-        
-        G = self.cache.get_graph(graph_id)
-        neighbors = []
-        
-        # get G's edges
-        edges_to_reverse = list(G.edges())
-        edges_to_reverse_final = []
-        
-        # generate neighbours by reversing each edge
-        for edge in edges_to_reverse:
-            new_G = G.copy()
-            
-            new_G.remove_edge(edge[0], edge[1])
-            new_G.add_edge(edge[1], edge[0])
-            
-            # check if the graph is a DAG
-            if nx.is_directed_acyclic_graph(new_G):
-                neighbors.append(new_G)
-                self.cache.compute_graph_hash(new_G)
-                edges_to_reverse_final.append((edge[0], edge[1]))
-        
-        self.cache.dict_graph_id_to_neighbors_by_reversal[graph_id] = neighbors
-        self.cache.dict_graph_id_to_edges_to_reverse[graph_id] = edges_to_reverse_final
-        
-        return neighbors
     
     def get_graph_hash(self):
         return self.graph_hash

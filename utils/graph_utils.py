@@ -446,9 +446,25 @@ def update_graph_frequencies_old(graph_list: list, dag_dict : dict):
     return dag_dict
 
 
+# intersetion of two dictionaries
+def intersection(d1, d2):
+    
+    d2_cp = d2.copy()
+    d1_keys = set(d1.keys())
+    d2_keys = set(d2_cp.keys())
+    shared_keys = d1_keys.intersection(d2_keys)
+    print( shared_keys )
+    
+    # sum the values of d1 
+    total = sum(d1.values())
+    
+    for key in shared_keys:
+        d2_cp[key] = d1[key] / total
+    
+    return d2_cp
 
 
-def update_graph_frequencies(graph_list: list, dag_dict: dict):
+def update_graph_frequencies(graph_list: list, result_index: dict):
     """Given a list of graphs, returns a dictionary with the number of times a graph occurs
 
     Args:
@@ -458,20 +474,14 @@ def update_graph_frequencies(graph_list: list, dag_dict: dict):
     Returns:
         dict: Updated dictionary with normalized frequencies.
     """
-    dag_dict_cp = dag_dict.copy()
-    
     # Count occurrences of each graph string
     graph_str_counter = Counter(convert_graph_to_str(graph) for graph in graph_list)
     
-    # sum all values in graph_str_counter
-    total = sum(graph_str_counter.values())
-    
-    # Batch update dag_dict
-    for graph_str, count in graph_str_counter.items():
-        if graph_str in dag_dict_cp.keys():
-            dag_dict_cp[graph_str] = count / total
+    # convert graph_str_counter to a dictionary
+    graph_str_dict = dict(graph_str_counter)
+    result = intersection(graph_str_dict, result_index)
 
-    return dag_dict_cp
+    return result
 
 
 
@@ -551,25 +561,12 @@ def plot_approx_posterior_distribution_back( all_dags_dict, figsize=(7,5), title
     
 def plot_approx_posterior_distribution(all_dags_dict, num_dags_threshold=50, prob_threshold=0.001, figsize=(7,5), title="MCMC Approximate Posterior Distribution"):
     
-    # copy all_dags_dict and remove the first entry
-    all_dags_dict_copy = all_dags_dict.copy()
-    all_dags_dict_copy.pop(0, None) 
-
-    # Create a mapper
-    id_to_adjmat = {key: idx for idx, key in enumerate(all_dags_dict_copy.keys())}
-    adjmat_to_id = {idx: key for idx, key in enumerate(all_dags_dict_copy.keys())}
-    
     # Filter all_dags_dict for scores greater than 0.0001
-    filtered_dags = {k: v for k, v in all_dags.items() if v['score_normalised'] >= prob_threshold}
+    filtered_dags = {k: v for k, v in all_dags_dict.items() if v >= prob_threshold}
     
-    # Determine which entries to plot based on the length of filtered_dags and their score_normalised value
-    if len(filtered_dags) >= num_dags_threshold:
-        further_filtered_dags = {k: v for k, v in filtered_dags.items() if v['score_normalised'] >= prob_threshold}
-        x_labels = [str(id_to_adjmat[key]) for key in further_filtered_dags.keys()]
-        scores = [entry['score_normalised'] for entry in further_filtered_dags.values()]
-    else:
-        x_labels = [str(id_to_adjmat[key]) for key in filtered_dags.keys()]
-        scores = [entry['score_normalised'] for entry in filtered_dags.values()]
+    x_labels = filtered_dags.keys()
+    scores = filtered_dags.values()
+    
     
     # Plotting
     plt.figure(figsize=figsize)
@@ -583,8 +580,6 @@ def plot_approx_posterior_distribution(all_dags_dict, num_dags_threshold=50, pro
     plt.title(title)
     plt.grid(False)
     plt.show()
-    
-    return adjmat_to_id
 
     
 

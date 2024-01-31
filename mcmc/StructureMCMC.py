@@ -40,22 +40,20 @@ class StructureMCMC(MCMC):
 	def log_acceptance_ratio(self, posterior_Gcurr, posterior_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr):
 
 		try:
-			
 			numerator = posterior_Gprop + np.log(Q_Gcurr_Gprop)
 		except:
 			print("RuntimeWarning: divide by zero encountered in log")
 			print(f"\tposterior_Gcurr: {posterior_Gcurr}")
 			print(f"\tQ_Gcurr_Gprop: {Q_Gcurr_Gprop}")
-			Q_Gcurr_Gprop = 0.0001
+			Q_Gcurr_Gprop = 0.000001
 
 		try:
-				
 			denominator = posterior_Gcurr + np.log(Q_Gprop_Gcurr)
 		except:
 			print("RuntimeWarning: divide by zero encountered in log")
 			print(f"\tposterior_Gprop: {posterior_Gprop}")
 			print(f"\tQ_Gprop_Gcurr: {Q_Gprop_Gcurr}")
-			Q_Gprop_Gcurr = 0.0001
+			Q_Gprop_Gcurr = 0.000001
 			
 		return  min(0, numerator - denominator)
 
@@ -82,7 +80,7 @@ class StructureMCMC(MCMC):
 		score_Gcurr = score_dict['score']
 
 		mcmc_res[0] = {"graph": G_curr, 
-						"graph_matrix" : convert_graph_to_str(G_curr),
+						#"graph_matrix" : convert_graph_to_str(G_curr),
 						"score": score_Gcurr, 
 						"operation":G_curr_operation,
 						"accepted" : 0,
@@ -104,8 +102,8 @@ class StructureMCMC(MCMC):
 			if u < 0.01:
 				
 				mcmc_res[iter_indx] = {"graph": self.proposal_object.get_G_curr(), 
-									"graph_id" : self.proposal_object.get_graph_id(),
-									"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
+									#"graph_id" : self.proposal_object.get_graph_id(),
+									#"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
 									"score": score_Gcurr, 
 									"operation": G_curr_operation,
 									"accepted" : accept_indx,
@@ -113,7 +111,7 @@ class StructureMCMC(MCMC):
 									"Q_Gcurr_Gprop" : Q_Gcurr_Gprop,
 									"score_Gprop" : score_Gprop,
 									"score_Gcurr" : score_Gcurr,
-									"acceptance_prob" : acceptance_prob}
+									"acceptance_prob" : 0.01}
 					
 				iter_indx += 1
 				continue
@@ -125,8 +123,6 @@ class StructureMCMC(MCMC):
 			# compute the proposal distribution Q
 			Q_Gcurr_Gprop = self.proposal_object.get_prob_Gcurr_Gprop()
 			Q_Gprop_Gcurr = self.proposal_object.get_prob_Gprop_Gcurr()
-
-			# compute the score of the proposed graph given the data
 
 			# we need to update the graph so we can extract the parents of the node
 			self.score_object.set_graph(G_prop)
@@ -151,7 +147,6 @@ class StructureMCMC(MCMC):
 				u = np.log(np.random.uniform(0, 1))
 
 			else:
-				print( "You should not be here")
 				acceptance_prob = self.acceptance_ratio(score_Gcurr, score_Gprop, Q_Gcurr_Gprop, Q_Gprop_Gcurr)
 				u =  random.uniform(0,1)
 
@@ -168,8 +163,8 @@ class StructureMCMC(MCMC):
 
 			
 			mcmc_res[iter_indx] = {"graph": self.proposal_object.get_G_curr(), 
-									"graph_id" : self.proposal_object.get_graph_id(),
-									"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
+									#"graph_id" : self.proposal_object.get_graph_id(),
+									#"graph_matrix" : convert_graph_to_str( self.proposal_object.get_G_curr()),
 									"score": score_Gcurr, 
 									"operation": G_curr_operation,
 									"accepted" : accept_indx,
@@ -184,6 +179,7 @@ class StructureMCMC(MCMC):
 
 		return mcmc_res, np.round(ACCEPT / self.max_iter,4)
 		
+ 
 	def get_mcmc_res_graphs(self, results):
 		mcmc_graph_lst = []
 		for i in range(len(results)):
