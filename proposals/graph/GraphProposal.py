@@ -29,29 +29,36 @@ class GraphProposalUniform(StructureLearningProposal):
     def __init__(self, G_curr : nx.DiGraph, blacklist = None, whitelist = None):
         super().__init__(G_curr, blacklist, whitelist) # initialize the parent class
         
-        self.G_curr = G_curr.copy()
+        
+        self.node_labels = G_curr.nodes()
+        self.num_nodes = len(G_curr.nodes())
+        
+        self.max_parents = self.num_nodes - 1
+        
+        self.node_label_to_indx = {node_label: indx for indx, node_label in enumerate(self.node_labels)}
+        self.indx_to_node_label = {indx: node_label for indx, node_label in enumerate(self.node_labels)}
+        
+        self.G_curr = nx.adjacency_matrix(G_curr).toarray()
         self.G_prop = None
         
         self.G_curr_neigh = -1
         self.G_prop_neigh = -1
         
-        num_nodes = len(G_curr.nodes())
-        
         # If forbidden_adj_mat is None, create a matrix of zeros with the dimensions of the graph's adjacency matrix
         if blacklist is None:
-            self.blacklist = np.zeros((num_nodes, num_nodes))
+            self.blacklist = np.zeros((self.num_nodes, self.num_nodes))
         else:
             self.blacklist = blacklist
         
         if whitelist is None:
-            self.whitelist = np.zeros((num_nodes, num_nodes))
+            self.whitelist = np.zeros((self.num_nodes, self.num_nodes))
         else:
             self.whitelist = whitelist
         
-        self.operations = ["add_edge", "delete_edge", "reverse_edge"]
+        self.operations = ["add_edge", "delete_edge", "reverse_edge", "stay_still"]
         
 
-    def random_index_from_ones(self, matrix):
+    def random_index_from_ones(self, matrix : np.ndarray ):
         """ Return a random index where the matrix element is 1. """
         ones_indices = np.argwhere(matrix == 1)
         if len(ones_indices) == 0:
@@ -59,7 +66,7 @@ class GraphProposalUniform(StructureLearningProposal):
         random_choice = np.random.choice(len(ones_indices))
         return ones_indices[random_choice]
 
-    def propose_neighbor_by_addition(self, indx_mat, incidence ):
+    def propose_neighbor_by_addition(self, indx_mat : np.ndarray, incidence : np.ndarray ):
         
         # sample an edge from the indx_mat that has a value of 1
         try:
@@ -70,8 +77,6 @@ class GraphProposalUniform(StructureLearningProposal):
             print("Index matrix")
             print( indx_mat)
             raise Exception("The incidence matrix is not valid!")
-
-        #incidence = incidence.values
         
         # update the incidence matrix
         new_incidence = incidence.copy()
@@ -80,9 +85,8 @@ class GraphProposalUniform(StructureLearningProposal):
         
         return new_incidence
         
-    def propose_neighbor_by_reverse(self, indx_mat, incidence ):
+    def propose_neighbor_by_reverse(self, indx_mat : np.ndarray, incidence : np.ndarray ):
         
-        incidence = incidence.values
         
         # sample an edge from the indx_mat that has a value of 1
         # depending if the indx matrix is addition, reversal or deletion,
@@ -103,9 +107,8 @@ class GraphProposalUniform(StructureLearningProposal):
         
         return new_incidence
 
-    def propose_neighbor_by_deletion(self, indx_mat, incidence ):
+    def propose_neighbor_by_deletion(self, indx_mat : np.ndarray, incidence : np.ndarray ):
         
-        incidence = incidence.values
         
         # sample an edge from the indx_mat that has a value of 1
         # depending if the indx matrix is addition, reversal or deletion,
@@ -126,34 +129,25 @@ class GraphProposalUniform(StructureLearningProposal):
         
         return new_incidence
     
-    def compute_nbhood(self, graph):    
+    def compute_nbhood(self, incidence : np.ndarray):    
             
-            # if graph is a networkx type, then extract the adjacency matrix
-            if isinstance(graph, nx.DiGraph):
-                incidence = get_adjacency_matrix(graph)
-                incidence = incidence.values
-            else:
-                raise Exception("The graph is not a networkx type!")
-            
-            # get information from the graph
-            num_nodes = len( graph.nodes() )
-            num_parents = num_nodes - 1
-            ancestor = compute_ancestor_matrix( graph )
+            ancestor = compute_ancestor_matrix( incidence )
             
             # Matrices used in further computations
-            fullmatrix = create_ones_matrix( num_nodes )
-            Ematrix = create_identity_matrix( num_nodes )
+            fullmatrix = create_ones_matrix( self.num_nodes )
+            Ematrix = create_identity_matrix( self.num_nodes )
             
             # 1.) Number of neighbour graphs obtained by edge deletions
-            num_deletion = np.sum(incidence)
             deletion = incidence.copy() - self.whitelist
+            num_deletion = np.sum(deletion)
+            
             
             # 2.) Number of neighbour graphs obtained by edge additions
             add = fullmatrix - Ematrix - incidence  - ancestor  - self.blacklist
             
             add[add < 0] = 0
             try:
-                indx = np.where( np.sum(incidence, axis = 0) > num_parents - 1 )[0][0]
+                indx = np.where( np.sum(incidence, axis = 0) > self.max_parents - 1 )[0][0]
                 add[:,indx] = 0  
                 num_addition = np.sum(add)# eliminate cycles  
             except:                  
@@ -172,13 +166,13 @@ class GraphProposalUniform(StructureLearningProposal):
             # Total number of neighbour graphs
             currentnbhood =  num_deletion + num_addition + 1 + num_reversal
             
-            return currentnbhood, deletion, add, reversal
+            return currentnbhood, deletion, add, reversal, num_deletion, num_addition, num_reversal
 
     # PROP_GCURR_GPROP
     ########################################################################################### 
     def prob_Gcurr_Gprop_f( self ):
         
-        num_neigh, _, _, _ = self.compute_nbhood( self.G_prop )
+        num_neigh, _, _, _ , _, _, _ = self.compute_nbhood( self.G_prop )
         self.G_prop_neigh = num_neigh
         
         # Q(G_curr -> G_prop) = 1 / (number of neighbors of G_prop)
@@ -188,7 +182,7 @@ class GraphProposalUniform(StructureLearningProposal):
 
     # PROB_GPROP_GCURR
     ########################################################################################### 
-    def prob_Gprop_Gcurr_f(self):
+    def prob_Gprop_Gcurr_f( self ):
 
         # Q(G_prop -> G_curr) = 1 / (number of neighbors of G_curr)
         self.prob_Gprop_Gcurr = 1 / self.G_curr_neigh
@@ -198,54 +192,37 @@ class GraphProposalUniform(StructureLearningProposal):
     # PROPOSE_DAG
     ###########################################################################################    
     def propose_DAG(self):
-        
-        # get the number of nodes
-        num_nodes = len(self.G_curr.nodes())
-        
-        # TODO: improve this block: whitelists must be provided in networkx format
+
         # add the whitelist to the current incidence matrix
-        incidence = get_adjacency_matrix( self.G_curr )
-        incidence = update_matrix(incidence.values,  incidence.values +  self.whitelist ) 
-        incidence = pd.DataFrame(incidence, columns = self.G_curr.nodes(), index = self.G_curr.nodes())
-        self.G_curr = nx.DiGraph(incidence)
+        self.G_curr  = update_matrix(self.G_curr ,  self.G_curr  +  self.whitelist  ) 
         
         # compute all possible neighbours
-        num_neighbours, del_indx_mat, add_indx_mat, rev_indx_mat = self.compute_nbhood(self.G_curr)
+        num_neighbours, del_indx_mat, add_indx_mat, rev_indx_mat, num_deletion, num_addition, num_reversal = self.compute_nbhood(self.G_curr)
+        
+        # set the number of neighbours
         self.G_curr_neigh = num_neighbours
-
-        # get the adjacency matrix of the current graph
-        incidence = incidence.values
         
-        is_zero_matrix = np.all(incidence == 0)         # check if incidence is just zeros
-        is_add_zero_matrix = np.all(add_indx_mat == 0)  # check if add_indx_mat is just zeros
-        is_rev_zero_matrix = np.all(rev_indx_mat == 0)  # check if rev_indx_mat is just zeros
-
-        if len(self.G_curr.edges()) == 0 or is_zero_matrix:
-            self.operations = ["add_edge"]
-        elif is_add_zero_matrix:
-            self.operations = ["delete_edge", "reverse_edge"]
-        elif is_rev_zero_matrix and  (not is_zero_matrix):
-            self.operations = ["add_edge", "delete_edge"]
-        else:
-            self.operations = ["add_edge", "delete_edge", "reverse_edge"]
-        
-        operation = random.choice(self.operations)
+        # is_zero_matrix = np.all(self.G_curr == 0)         # check if incidence is just zeros
+        # if is_zero_matrix:
+        #     operation = "add_edge"
+        # else:
+        # Randomly sample an operation
+        operation = np.random.choice(self.operations, size=1, p = [num_addition/num_neighbours, num_deletion/num_neighbours, num_reversal/num_neighbours, 1/num_neighbours])
         
         # initialise new_incidence as zeros NxN
-        new_incidence = np.zeros((num_nodes, num_nodes))
-        
+        self.G_prop  = np.zeros((self.num_nodes, self.num_nodes))
+    
         if operation == "add_edge":
-            new_incidence = self.propose_neighbor_by_addition( add_indx_mat, incidence )
+            self.G_prop  = self.propose_neighbor_by_addition( add_indx_mat, self.G_curr )
         elif operation == "delete_edge":
-            new_incidence = self.propose_neighbor_by_deletion( del_indx_mat, incidence )
+            self.G_prop  = self.propose_neighbor_by_deletion( del_indx_mat, self.G_curr )
         elif operation == "reverse_edge":
-            new_incidence = self.propose_neighbor_by_reverse( rev_indx_mat, incidence)
+            self.G_prop  = self.propose_neighbor_by_reverse( rev_indx_mat, self.G_curr)
+        elif operation == "stay_still":
+            self.G_prop  = self.G_curr
         else:
             raise Exception(f"The operation '{operation}' is not valid!")
         
-        # Select a random neighbor
-        new_incidence = pd.DataFrame( new_incidence, columns = list(self.G_curr.nodes()) )
-        self.G_prop = convert_adj_mat_to_graph( new_incidence )
         self.operation = operation
         
         # compute the proppsal distribution
@@ -258,6 +235,36 @@ class GraphProposalUniform(StructureLearningProposal):
 
     # GET_GCURR
     ###########################################################################################
+    
+    def get_node_labels(self):
+        return self.node_labels
+    
+    def set_node_labels(self, node_labels):
+        self.node_labels = node_labels
+        
+    def get_num_nodes(self):
+        return self.num_nodes
+    
+    def set_num_nodes(self, num_nodes):
+        self.num_nodes = num_nodes
+        
+    def get_max_parents(self):
+        return self.max_parents
+    
+    def set_max_parents(self, max_parents):
+        self.max_parents = max_parents
+        
+    def get_node_label_to_indx(self):
+        return self.node_label_to_indx
+    
+    def get_indx_to_node_label(self):
+        return self.indx_to_node_label
+    
+    def set_indx_to_node_label(self, indx_to_node_label):
+        self.indx_to_node_label = indx_to_node_label
+    
+    def set_node_label_to_indx(self, node_label_to_indx):
+        self.node_label_to_indx = node_label_to_indx
     
     def get_G_curr_neigh(self):
         return self.G_curr_neigh

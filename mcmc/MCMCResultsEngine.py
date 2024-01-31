@@ -293,20 +293,25 @@ class MCMCResultsEngine():
 
     def mcmc_edge_frequency_heatmap(self, struct_mcmc, mcmc_res,  burnIn, figsize= (8,8), title = "Edge Occurrence Probabilities from Sampled DAGs" ):
         
-        dags = struct_mcmc.get_mcmc_res_graphs(  mcmc_res )[burnIn:]
-        
-        nodes = list( dags[0].nodes())
-        
+        adj_matrix_list = struct_mcmc.get_mcmc_res_graphs(  mcmc_res )[burnIn:]
+
+        nodes = struct_mcmc.get_node_labels()
+
         num_nodes = len(nodes)
+
         frequency_matrix = np.zeros((num_nodes, num_nodes))
-        
-        for G in dags:
-            for edge in G.edges():
-                source, target = edge
-                frequency_matrix[nodes.index(source), nodes.index(target)] += 1
-        
+
+        for G in adj_matrix_list:
+            for i in range(G.shape[0]):  # Iterate over rows
+                for j in range(G.shape[1]):  # Iterate over columns
+                    if G[i][j] != 0:  # Check for a non-zero value indicating an edge
+                        source = i
+                        target = j
+                        
+                        frequency_matrix[source, target] += 1
+            
         # Normalize by the number of samples to get frequencies
-        frequency_matrix /= len(dags)
+        frequency_matrix /= len(adj_matrix_list)
         
         # Visualize as heatmap
         plt.figure(figsize=figsize)
