@@ -29,7 +29,7 @@ def kl_divergence(P : dict, Q : dict):
 ##
 ## jensen_shannon_divergence
 ###########################################################################################
-def jensen_shannon_divergence(P: dict, Q: dict):
+def jensen_shannon_divergence(P: dict, Q: dict, tol: float = 1e-15):
     """_summary_
 
     Args:
@@ -44,12 +44,10 @@ def jensen_shannon_divergence(P: dict, Q: dict):
     if len_diff > 0:
         print(f"Error: P and Q have different lengths: {len(P)} and {len(Q)}")
         return -1
-
-    epsilon=1e-10 
     
     # Convert the distributions to lists (ensuring consistent order)
-    p = np.array(list(P.values())) + epsilon
-    q = np.array(list(Q.values())) + epsilon
+    p = np.array(list(P.values())) + tol
+    q = np.array(list(Q.values())) + tol
 
     # Normalize the distributions to ensure they are proper probability distributions
     p /= p.sum()
@@ -59,8 +57,6 @@ def jensen_shannon_divergence(P: dict, Q: dict):
     m = 0.5 * (p + q)
     
     # Compute the Jensen-Shannon divergence
-    
-    
     jsd = 0.5 * (entropy(p, m) + entropy(q, m))
     
     return jsd
