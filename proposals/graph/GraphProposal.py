@@ -71,7 +71,7 @@ class GraphProposalUniform(StructureLearningProposal):
             print( indx_mat)
             raise Exception("The incidence matrix is not valid!")
 
-        incidence = incidence.values
+        #incidence = incidence.values
         
         # update the incidence matrix
         new_incidence = incidence.copy()
@@ -214,7 +214,7 @@ class GraphProposalUniform(StructureLearningProposal):
         self.G_curr_neigh = num_neighbours
 
         # get the adjacency matrix of the current graph
-        incidence = get_adjacency_matrix( self.G_curr )
+        incidence = incidence.values
         
         is_zero_matrix = np.all(incidence == 0)         # check if incidence is just zeros
         is_add_zero_matrix = np.all(add_indx_mat == 0)  # check if add_indx_mat is just zeros

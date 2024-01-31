@@ -516,33 +516,27 @@ def all_valid_orderings(graph):
 
 def plot_true_posterior_distribution(all_dags_dict, score = 'score_normalised', fontsize = 10, ylabel = r'Groundtruth P($G | Data$)', num_dags_threshold = 50, prob_threshold = 0.001, figsize=(7,5), title="Groundtruth posterior distribution", my_color = 'skyblue', alpha = 1,  ax = None, label = None):
     
-    # Determine which entries to plot based on the length of all_dags_dict and their score_normalised value
-    if len(all_dags_dict) > num_dags_threshold:
-        filtered_dags = {k: v for k, v in all_dags_dict.items() if v[score] >= prob_threshold}
-        x_labels = [ "G" + str(all_dags_dict[g]['DAG_indx']) + "_E" + str(all_dags_dict[g]['num_edges']) for g in filtered_dags.keys() ]
-        scores = [entry[score] for entry in filtered_dags.values()]
-    else:
-        x_labels = [ "G" + str(all_dags_dict[g]['DAG_indx']) + "_E" + str(all_dags_dict[g]['num_edges']) for g in all_dags_dict.keys() ]
-        scores = [entry[score] for entry in all_dags_dict.values()]
+    # Filter all_dags_dict for scores greater than 0.0001
+    filtered_dags = {k: v[score] for k, v in all_dags_dict.items() if v[score] >= prob_threshold}
+    print(filtered_dags)
     
-    if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
+    x_labels = filtered_dags.keys()
+    scores = filtered_dags.values()
+    
     
     # Plotting
-    ax.bar(x_labels, scores, color=my_color, alpha = alpha, label = label)
+    plt.figure(figsize=figsize)
+    plt.bar(x_labels, scores, color='skyblue')
     
     # Show ticks only for x values greater than 0
-    #ax.set_xticks(ticks, rotation=90, fontsize=10)
-    ax.set_xticks(range(len(x_labels)))
-    ax.set_xticklabels(x_labels, rotation=90, fontsize=fontsize)
+    plt.xticks(range(len(x_labels)), rotation=90, fontsize=10)
 
-    ax.set_xlabel('G = $g_j$')
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    plt.xlabel('G = $g_j$')
+    plt.ylabel(r'MCMC Approximate P($G | Data$)')
+    plt.title(title)
     plt.grid(False)
+    plt.show()
     
-    if ax is None:
-        plt.show()
 
     
 def plot_approx_posterior_distribution_back( all_dags_dict, figsize=(7,5), title = "Graph Posterior Distribution"):
